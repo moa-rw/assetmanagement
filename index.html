@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Asset Tracker</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    h1, h2 {
+      color: #333;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    input[type="text"], input[type="number"], select {
+      width: 100%;
+      padding: 8px;
+      box-sizing: border-box;
+      margin-bottom: 10px;
+    }
+    button {
+      padding: 10px 20px;
+      background-color: #28a745;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #218838;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    table, th, td {
+      border: 1px solid #ddd;
+    }
+    th, td {
+      padding: 10px;
+      text-align: left;
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+    .chart-container {
+      margin-top: 40px;
+      width: 60%;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .group-header {
+      background-color: #f8f9fa;
+      font-weight: bold;
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+</head>
+<body>
+  <h1>Asset Tracker</h1>
+
+  <!-- Register Asset Type -->
+  <h2>Register Asset Type</h2>
+  <div class="form-group">
+    <label for="asset-type">Asset Type:</label>
+    <input type="text" id="asset-type" placeholder="Enter asset type">
+  </div>
+  <button onclick="registerAssetType()">Register Asset Type</button>
+
+  <!-- Register Brand -->
+  <h2>Register Brand</h2>
+  <div class="form-group">
+    <label for="brand">Brand:</label>
+    <input type="text" id="brand" placeholder="Enter brand">
+  </div>
+  <button onclick="registerBrand()">Register Brand</button>
+
+  <!-- Add Asset -->
+  <h2>Add Asset</h2>
+  <div class="form-group">
+    <label for="asset-type-select">Asset Type:</label>
+    <select id="asset-type-select"></select>
+  </div>
+  <div class="form-group">
+    <label for="brand-select">Brand:</label>
+    <select id="brand-select"></select>
+  </div>
+  <div class="form-group">
+    <label for="quantity">Quantity:</label>
+    <input type="number" id="quantity" placeholder="Enter quantity">
+  </div>
+  <button onclick="addAsset()">Add Asset</button>
+
+  <!-- Bulk Upload -->
+  <h2>Bulk Upload</h2>
+  <div class="form-group">
+    <label for="bulk-upload">Upload CSV File:</label>
+    <input type="file" id="bulk-upload" accept=".csv">
+  </div>
+  <button onclick="bulkUpload()">Upload</button>
+
+  <!-- Asset List -->
+  <h2>Asset List</h2>
+  <div class="form-group">
+    <label for="brand-filter">Filter by Brand:</label>
+    <select id="brand-filter" onchange="filterAssets()">
+      <option value="all">All Brands</option>
+    </select>
+  </div>
+  <table id="asset-list">
+    <thead>
+      <tr>
+        <th>Asset Type</th>
+        <th>Brand</th>
+        <th>Quantity</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <!-- Chart -->
+  <div class="chart-container">
+    <canvas id="assetChart"></canvas>
+  </div>
+
+  <script>
+    let assetTypes = [];
+    let brands = [];
+    let assets = [];
+
+    const ctx = document.getElementById('assetChart').getContext('2d');
+    let assetChart;
+
+    function registerAssetType() {
+      const assetType = document.getElementById('asset-type').value.trim();
+      if (assetType) {
+        if (!assetTypes.includes(assetType)) {
+          assetTypes.push(assetType);
+          document.getElementById('asset-type').value = '';
+          updateAssetTypeDropdown();
+          updateChart();
+          alert('Asset type registered successfully!');
+        } else {
+          alert('Asset type already exists!');
+        }
+      } else {
+        alert('Please enter an asset type!');
+      }
+    }
+
+    function registerBrand() {
+      const brand = document.getElementById('brand').value.trim();
+      if (brand) {
+        if (!brands.includes(brand)) {
+          brands.push(brand);
+          document.getElementById('brand').value = '';
+          updateBrandDropdown();
+          alert('Brand registered successfully!');
+        } else {
+          alert('Brand already exists!');
+        }
+      } else {
+        alert('Please enter a brand!');
+      }
+    }
+
+    function updateAssetTypeDropdown() {
+      const select = document.getElementById('asset-type-select');
+      select.innerHTML = '';
+      assetTypes.sort().forEach(type => {
+        const option = document.createElement('option');
+        option.value = type;
+        option.textContent = type;
+        select.appendChild(option);
+      });
+    }
+
+    function updateBrandDropdown() {
+      // Update the add asset form dropdown
+      const select = document.getElementById('brand-select');
+      select.innerHTML = '';
+      brands.sort().forEach(brand => {
+        const option = document.createElement('option');
+        option.value = brand;
+        option.textContent = brand;
+        select.appendChild(option);
+      });
+
+      // Update the filter dropdown
+      const filterSelect = document.getElementById('brand-filter');
+      const currentFilter = filterSelect.value; // Save current selection
+      filterSelect.innerHTML = '<option value="all">All Brands</option>';
+      brands.sort().forEach(brand => {
+        const option = document.createElement('option');
+        option.value = brand;
+        option.textContent = brand;
+        filterSelect.appendChild(option);
+      });
+      filterSelect.value = currentFilter; // Restore selection
+    }
+
+    function addAsset() {
+      try {
+        const assetType = document.getElementById('asset-type-select')?.value;
+        const brand = document.getElementById('brand-select')?.value;
+        const quantityInput = document.getElementById('quantity')?.value;
+
+        // Validate inputs
+        if (!assetType || !brand || !quantityInput) {
+          console.error('Missing required fields:', { assetType, brand, quantityInput });
+          alert('Please fill in all fields!');
+          return;
+        }
+
+        const quantity = parseInt(quantityInput);
+        if (isNaN(quantity) || quantity <= 0) {
+          console.error('Invalid quantity value:', quantityInput);
+          alert('Please enter a valid positive number for quantity!');
+          return;
+        }
+
+        const existingAsset = assets.find(asset => 
+          asset.type === assetType && asset.brand === brand
+        );
+        
+        if (existingAsset) {
+          existingAsset.quantity += quantity;
+        } else {
+          assets.push({ type: assetType, brand, quantity });
+        }
+        
+        document.getElementById('quantity').value = '';
+        groupAndDisplayAssets();
+        updateChart();
+        console.log('Asset added successfully:', { assetType, brand, quantity });
+        alert('Asset added successfully!');
+      } catch (error) {
+        console.error('Error adding asset:', error);
+        alert('An error occurred while adding the asset. Please check the console for details.');
+      }
+    }
+
+    function filterAssets() {
+      groupAndDisplayAssets();
+      updateChart();
+    }
+
+    function groupAndDisplayAssets() {
+      // Sort assets by type and brand
+      assets.sort((a, b) => {
+        if (a.type !== b.type) {
+          return a.type.localeCompare(b.type);
+        }
+        return a.brand.localeCompare(b.brand);
+      });
+
+      const tbody = document.querySelector('#asset-list tbody');
+      tbody.innerHTML = '';
+
+      let currentType = null;
+      let totalQuantityByType = {};
+      
+      // Get selected brand filter
+      const selectedBrand = document.getElementById('brand-filter').value;
+
+      assets.forEach((asset, index) => {
+        // Skip if doesn't match brand filter
+        if (selectedBrand !== 'all' && asset.brand !== selectedBrand) {
+          return;
+        }
+
+        // Add type header if it's a new type
+        if (currentType !== asset.type) {
+          currentType = asset.type;
+          totalQuantityByType[currentType] = 0;
+        }
+
+        totalQuantityByType[currentType] += asset.quantity;
+
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${asset.type}</td>
+          <td>${asset.brand}</td>
+          <td>${asset.quantity}</td>
+          <td><button onclick="removeAsset(${index})">Remove</button></td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    function removeAsset(index) {
+      const quantity = parseInt(prompt('Enter quantity to remove:'));
+      if (quantity > 0 && quantity <= assets[index].quantity) {
+        assets[index].quantity -= quantity;
+        if (assets[index].quantity === 0) {
+          assets.splice(index, 1);
+        }
+        groupAndDisplayAssets();
+        updateChart();
+        alert('Asset removed successfully!');
+      } else {
+        alert('Invalid quantity!');
+      }
+    }
+
+    function updateChart() {
+      // Get selected brand filter
+      const selectedBrand = document.getElementById('brand-filter').value;
+      
+      // Filter assets based on selected brand
+      const filteredAssets = selectedBrand === 'all' 
+        ? assets 
+        : assets.filter(asset => asset.brand === selectedBrand);
+
+      // Calculate quantities by asset type
+      const assetTypeQuantities = {};
+      filteredAssets.forEach(asset => {
+        assetTypeQuantities[asset.type] = (assetTypeQuantities[asset.type] || 0) + asset.quantity;
+      });
+
+      const labels = Object.keys(assetTypeQuantities).sort();
+      const data = labels.map(label => assetTypeQuantities[label]);
+
+      // Define colors for different asset types
+      const getBackgroundColor = (label) => {
+        switch (label.toLowerCase()) {
+          case 'laptop':
+            return 'rgba(54, 162, 235, 0.2)';
+          case 'desktop':
+            return 'rgba(255, 99, 132, 0.2)';
+          default:
+            return 'rgba(75, 192, 192, 0.2)';
+        }
+      };
+
+      const getBorderColor = (label) => {
+        switch (label.toLowerCase()) {
+          case 'laptop':
+            return 'rgba(54, 162, 235, 1)';
+          case 'desktop':
+            return 'rgba(255, 99, 132, 1)';
+          default:
+            return 'rgba(75, 192, 192, 1)';
+        }
+      };
+
+      // Destroy the existing chart if it exists
+      if (assetChart) {
+        assetChart.destroy();
+      }
+
+      // Create a new chart
+      assetChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: selectedBrand === 'all' 
+              ? 'Total Quantity by Asset Type' 
+              : `${selectedBrand} - Quantity by Asset Type`,
+            data: data,
+            backgroundColor: labels.map(getBackgroundColor),
+            borderColor: labels.map(getBorderColor),
+            borderWidth: 1
+          }]
+        },
+        options: {
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          }
+        }
+      });
+    }
+
+    function bulkUpload() {
+      try {
+        const fileInput = document.getElementById('bulk-upload');
+        if (!fileInput) {
+          console.error('File input element not found');
+          return;
+        }
+
+        const file = fileInput.files[0];
+        if (!file) {
+          console.error('No file selected');
+          alert('Please select a CSV file to upload!');
+          return;
+        }
+
+        if (!file.name.toLowerCase().endsWith('.csv')) {
+          console.error('Invalid file type:', file.name);
+          alert('Please select a valid CSV file!');
+          return;
+        }
+
+        const reader = new FileReader();
+        
+        reader.onerror = function(error) {
+          console.error('Error reading file:', error);
+          alert('Error reading file. Please check the console for details.');
+        };
+
+        reader.onload = function(event) {
+          try {
+            const csvData = event.target.result;
+            const rows = csvData.split('\n');
+            
+            if (rows.length < 2) {
+              console.error('CSV file is empty or contains only headers');
+              alert('The CSV file appears to be empty or contains only headers.');
+              return;
+            }
+
+            console.log('Processing CSV with', rows.length - 1, 'data rows');
+            
+            // Skip the header row
+            for (let i = 1; i < rows.length; i++) {
+              const row = rows[i].trim();
+              if (!row) continue; // Skip empty rows
+              
+              const [type, brand, quantity] = row.split(',').map(item => item.trim());
+              
+              if (!type || !brand || !quantity) {
+                console.warn(`Skipping invalid row ${i + 1}:`, row);
+                continue;
+              }
+
+              const parsedQuantity = parseInt(quantity);
+              if (isNaN(parsedQuantity) || parsedQuantity <= 0) {
+                console.warn(`Skipping row ${i + 1} due to invalid quantity:`, quantity);
+                continue;
+              }
+
+              if (!assetTypes.includes(type)) {
+                assetTypes.push(type);
+                console.log('Added new asset type:', type);
+              }
+              
+              if (!brands.includes(brand)) {
+                brands.push(brand);
+                console.log('Added new brand:', brand);
+              }
+
+              const existingAsset = assets.find(asset => 
+                asset.type === type && asset.brand === brand
+              );
+              
+              if (existingAsset) {
+                existingAsset.quantity += parsedQuantity;
+              } else {
+                assets.push({ type, brand, quantity: parsedQuantity });
+              }
+            }
+
+            updateAssetTypeDropdown();
+            updateBrandDropdown();
+            groupAndDisplayAssets();
+            updateChart();
+            console.log('Bulk upload completed successfully');
+            alert('Bulk upload completed successfully!');
+            
+          } catch (error) {
+            console.error('Error processing CSV data:', error);
+            alert('Error processing CSV data. Please check the console for details.');
+          }
+        };
+
+        reader.readAsText(file);
+        
+      } catch (error) {
+        console.error('Error in bulk upload:', error);
+        alert('An error occurred during bulk upload. Please check the console for details.');
+      }
+    }
+
+    // Initial setup
+    updateAssetTypeDropdown();
+    updateBrandDropdown();
+  </script>
+</body>
+</html>
